@@ -20,6 +20,8 @@ shipping it by finding an optimal stopping rule in order to minimize expected lo
 We sketch the main result of their article and apply their rule to an example
 using R code.
 
+This text is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop).
+
 # Introduction
 
 Imagine that a team of developers of a new R package needs to structure a test

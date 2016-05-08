@@ -9,28 +9,29 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,fig.width=6,fig.height=4)
 library("ggplot2")
 library("dplyr")
+library("animation")
 ```
 
 
 # Abstract
 
-This is a small note rediscovering a gem published by S. R. Dalal and C. L. Mallows about
+This is a small note rediscovering a gem published by S. R. Dalal and C. L. Mallows on
 treating the test of software in a statistical context (Dalal and Mallows, 1988).
 In their paper they answer the question on how long to continue testing your software before
-shipping. The problem is translated into a sequential decision problem, where an optimal stopping rule has to be found in order minimize expected loss.
-We sketch the main result of their article and apply their stopping rule to an example
+shipping. The problem is translated into a sequential decision problem, where an optimal stopping rule has to be found minimizing expected loss.
+We sketch the main result of their paper and apply their stopping rule to an example
 using R code.
 
-This text is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop) and as a [RPubs](http://rpubs.com/hoehle/179204).
+This text & source code is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop). Furthermore, it is also available as a [RPubs](http://rpubs.com/hoehle/179204).
 
 # Introduction
 
 Imagine that a team of developers of a new R package needs to structure a test
 plan before the release of the package to CRAN. Let $N$ be the (unknown) number
-of bugs in the package. They start their testing at time zero and subsequently
+of bugs in the package. The team starts their testing at time zero and subsequently
 find an increasing number of bugs as the test period passes by. The figure below
-shows such a testing process mimicking the numbers of the example
-in Dalal and Mallows (1988), which originates from the testing of a large
+shows such a testing process mimicking the example
+of Dalal and Mallows (1988) from the testing of a large
 software system at a telecommunications research company.
 
 ```{r,echo=FALSE,fig.align='center',results='hide',fig.keep='last'}
@@ -38,11 +39,11 @@ software system at a telecommunications research company.
 set.seed(123)
 t <- 0:175
 mu <- 0.02
-n <- 1250
-#Simulate K based onthe inter arrival times of the exponential distribution.
+N <- 1250
+#Simulate K based on the inter arrival times of the exponential distribution.
 #See
 #http://www.math.kth.se/matstat/gru/sf2955/exponorderstats.pdf
-K <- cumsum(rexp(n,rate=(n+1-1:n)*mu))
+K <- cumsum(rexp(N,rate=(N+1-1:N)*mu))
 #Discretize the event times into daily data
 K_days <- head(cumsum(table(cut(K, breaks=c(0:(max(t)+1),Inf)))),n=-1)
 K_days
@@ -53,43 +54,43 @@ print(p)
 
 ```
 
-We see that the number of bugs appears to level off. The question is now *how long should we continue testing*? Dalal and Mallows
-(1988) give a intriguing statistical answer to this problem.
+We see that the number of bugs appears to level off. The question is now *how long should we continue testing before releasing*? Dalal and Mallows
+(1988) give an intriguing statistical answer to this problem.
 
 # Methodology
 
-In order to answer the above question the following notation and assumptions are introduced.
+In order to answer the above question the following notation and assumptions are introduced:
 
 * The total number of bugs is assumed to be Poisson distributed $$N \sim \text{Po}(\lambda).$$ However, practice shows that the number of bugs in different modules has more variation that given by the Poisson distribution. Hence, let $\lambda \sim \text{Ga}(\alpha,\beta)$ and thus the marginal distribution of $N$ is negative binomial. 
 
-* The amount of time until discovery of each bug during the testing period is distributed according to the known distribution $G$ with density $g$ and that the discoveries are independent of each other. 
-The simplest example is to assume that the discovery distribution is exponential, i.e. $g(t)=\mu\exp(-\mu t)$, 
+* The amount of time until discovery of each bug during the testing period is distributed according to the known distribution $G$ with density $g$. Furthermore, it can be assumed that the discoveries times are independent of each other. 
+Example : The simplest example is to assume that the discovery distribution is exponential, i.e. $g(t)=\mu\exp(-\mu t)$, 
 where we measure time in number of person-days spent on the testing. 
 Thus, $1/\mu$ is the expected time until discovery of a bug.
 
 * Let $K(t)$ be the total number of bugs found up to time $t$. In other words, if $t_1,\ldots,t_N$ denote the discovery times of the $N$ bugs then 
     $$K(t)=\sum_{i=1}^N I(t_i \leq t),$$
-where $I(\cdot)$ is the indicator function. Note that at time point $t$, only bugs with a discovery time smaller or equal to $t$ would already have been observed and, hence, would be known to exist (right-truncation). Thus, even though $K(t)$ is proportional to the empirical cumulative distribution function of the discovery distribution $\hat{G}(t)$, the factor of proportionality is $N$, which is unknown at the time $t$.
+where $I(\cdot)$ is the indicator function. However, note that at time point $t$, only bugs with a discovery time smaller or equal to $t$ would already have been observed and, hence, would be known to exist (right-truncation). Thus, even though $K(t)$ is proportional to the empirical cumulative distribution function of the discovery distribution $\hat{G}(t)$, the factor of proportionality is $N$, which is unknown at the time $t$.
 
-Note: The paper actually showns that the Poisson-Gamma distribution assumption for $N$ is not crucial. An asymptotic argument is given that as long as the process does not terminate quickly (i.e. the number of bugs is relatively large) the results hold for more general distributions of $N$. Hence, in what follows, the parameter $\lambda$ is not needed and we proceed only with the asymptotic approach of the paper. 
+Note: The paper actually showns that the Poisson-Gamma distribution assumption for $N$ is not crucial. An asymptotic argument is given that as long as the process does not terminate quickly (i.e. the number of bugs is relatively large) the results hold for more general distributions of $N$. Hence, in the analysis that follows, the parameter $\lambda$ is not needed as we only proceed with the asymptotic approach of the paper. 
 
 ### Loss function
 In order to make a decision about when to stop testing based on expected loss/gain we need two further assumptions:
 
-* Let $c$ be the net cost of fixing a bug *after* release of the software instead of *before* the release. Hence, $c$ is the price of fixing a bug after release minus the price of fixing a bug before release. The practice of software development tells us $c>0$ -- this applies even to Open Source software.
+* Let $c$ be the net cost of fixing a bug *after* release of the software instead of *before* the release. Hence, $c$ is the price of fixing a bug after release minus the price of fixing a bug before release. The practice of software development tells us that $c>0$.
 
-* Let $f(t)$ be a known non-negative and monotone increasing function reflecting the cost of testingplus the opportunity cost of not releasing the software up to time $t$. Note that the cost of testing does not contain the costs of fixing bugs, once they are found. A simple example for $f$ is the linear loss function, i.e. $f(t) = f \cdot t$, where $f>0$ is a known constant.
+* Let $f(t)$ be a known non-negative and monotone increasing function reflecting the cost of testing plus the opportunity cost of not releasing the software up to time $t$. Note that the cost of testing does not contain the costs of fixing bugs, once they are found. A simple example for $f$ is the linear loss function, i.e. $f(t) = f \cdot t$, where $f>0$ is a known constant.
 
-The above assumptions imply the analysis of the following loss function:
+The above assumptions in summary imply the analysis of the following loss function:
 
 $$L(t,K(t),N) = f(t) - c K(t) + b\cdot N.$$
 
-As time passes one obtains information about the number of bugs found through $K(t)$. At each time point the following decision has to be made: stop testing & ship the package or continue to test. Seen in a statistical context this can
-be rephrased as how to pick the stopping rule s.t. the above loss function is minimized?
+As time passes, one obtains information about the number of bugs found through $K(t)$. At each time point the following decision has to be made: stop testing & ship the package or continue to test. Seen in a statistical context this can
+be rephrased into formulating a stopping rule such that the above loss function is minimized.
 
 ### Optimal Stopping Time
 
-In the simple model with exponential discovery times having rate $\mu$, the stopping rule  stated as equation (4.6) of Dalal and Mallows (1988) is to stop as soon as the number, $k$, of bugs found at time $t$ is such that:
+In the simple model with exponential discovery times having rate $\mu$, the stopping rule  stated as equation (4.6) of Dalal and Mallows (1988) is to stop as soon as the number, $k$, of bugs found at time $t$, i.e. $K(t)=k$, is such that:
 $$
 \frac{f}{c}\cdot \frac{\exp(\mu t) -1}{\mu} \geq k.
 $$
@@ -110,16 +111,18 @@ lhs <- function(fdivc,mu,testProcess) {
 }
 ```
 
-In the above, the quantity $c/f$ measures the amount saved by finding a bug (and hence fixing it before release) measured in units of testing days. As an example: if $c/f=0.2 \Leftrightarrow f/c=5$ then the gain in detecting a bug before release corresponds to 0.2 testing days.
-
-
+In the above, the quantity $c/f$ measures the amount saved by finding a bug (and hence fixing it before release) measured in units of testing days. As an example: if $c/f=0.2 \Leftrightarrow f/c=5$ then the gain in detecting a bug before release corresponds to 0.2
+testing days. Throughout the subsequent example we shall work with both $c/f=0.2$
+(ship early and fix later is acceptable) and $c/f=1$ (high costs of fixing bugs afte
+r the release).
 
 
 # Example
 
-Taking the testing data from the above figure, the first step consists of estimating $\mu$ from the available data. It's important to realize that the available data are a right-truncated sample, because only errors with a 
+Taking the testing data from the above figure, the first step consists of estimating $\mu$ from the available data. It is important to realize that the available data are a right-truncated sample, because only errors with a 
 discovery time smaller than the current observation time are observed.
-Furthermore, if data on the daily number of bug discoveries then the data are also interval censored. We setup up the loglikelihood function accordingly.
+Furthermore, if only data on the daily number of bug discoveries are available, then
+the data are also interval censored. We set up the loglikelihood function accordingly.
 
 ```{r}
 #######################################################
@@ -134,10 +137,13 @@ ll <- function(theta, testProcess, tC=max(testProcess$t)) {
   mu <- exp(theta)
   #Daily number of *new* bug discoveries. .
   DeltaK <- c(0,diff(testProcess$K))
-  #CDF function taking the truncation into account
+  #CDF function taking the right-truncation into account
   CDF <- function(x) pexp(x,rate=mu)/pexp(tC,rate=mu)
-  sum(DeltaK * log(CDF(1:(max(testProcess$t)+1)) - CDF(testProcess$t)))
+  #Log-likelihood is equivalent to multinomial sampling with p being a func of mu.
+  p <- CDF(1:(max(testProcess$t)+1)) - CDF(testProcess$t)
+  return(sum(DeltaK * log(p)))
 }
+#Find MLE
 mle <- optim(log(0.01),ll, testProcess=testProcess, control=list(fnscale=-1),method="BFGS")
 mu.hat <- exp(mle$par)
 c(mu=mu, mu.hat=mu.hat)
@@ -149,16 +155,18 @@ period. In practice, one would instead sequentially update the $\mu$ estimate ea
 
 ```{r,fig.align='center',warning=FALSE,echo=FALSE}
 #############################################
-# Show situation at time 'time'
+# Show situation at time 'time'. 
 #
 # Paramaters:
-#  time   - timepoint of the testing period
+#  time   - timepoint of the testing period. If NULL then the situation at the end
+#           of testProcess is shown.
 #  mu.hat - estimated value of mu.hat, if NULL a new estimation based on the available
 #           information at time 'time'
+#  testProcess - data_frame containing the data to illustrate/estimate from
 #  plot   - (boolean, default TRUE) If TRUE a plot of the situation is made
 #############################################
 
-stoptime_at_time <- function(time=NULL,mu.hat=NULL,plot=TRUE) {
+stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
   if (!is.null(time)) {
     tP_at_time <- testProcess %>% filter(t <= time) %>% select(t,K)
   } else {
@@ -168,7 +176,7 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,plot=TRUE) {
   
   #Estimate mu.hat
   if (is.null(mu.hat)) {
-    mle <- optim(log(0.01),ll, testProcess=tP_at_time, control=list(fnscale=-1),method="BFGS")
+    mle <- optim(log(0.01),ll, testProcess=tP_at_time,control=list(fnscale=-1),method="BFGS")
     mu.hat <- exp(mle$par)
   } 
   #Add curves to intersect with to the dataset
@@ -212,12 +220,12 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,plot=TRUE) {
 }
 
 #Determine the stopping time for a f/c ratio of 5 and 1.
-stopTime <- stoptime_at_time(time=max(t),mu.hat=mu.hat,plot=TRUE)
-stopTime
+stopTime <- stoptime_at_time(time=max(t),mu.hat=mu.hat,testProcess=testProcess,plot=TRUE)
+stopTime$stopTimefc5
 
 ```
 
-The optimal stopping time in the example in the case of $f/c=5$ is to stop the testing after `r stopTime$stopTimefc5$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data!
+The optimal stopping time in the example, in the case of $f/c=5$, is to stop the testing after `r stopTime$stopTimefc5$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data -- actually, they were simulated with $N=\Sexpr{N}$.
 
 # Animation
 
@@ -233,9 +241,8 @@ $t$.
 ```{r,warning=FALSE,echo=FALSE,results='hide',message=FALSE,fig.width=6,fig.height=4}
 #plot_at_time(169)
 t_grid <- seq(25,max(t),by=5)
-library("animation")
 ani.options(interval=0.25)
-saveGIF(sapply(t_grid,stoptime_at_time))
+saveGIF(sapply(t_grid,stoptime_at_time, testProcess=testProcess))
 ```
 
 ![](animation.gif)

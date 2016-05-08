@@ -43,9 +43,12 @@ N <- 1250
 #Simulate K based on the inter arrival times of the exponential distribution.
 #See
 #http://www.math.kth.se/matstat/gru/sf2955/exponorderstats.pdf
-K <- cumsum(rexp(N,rate=(N+1-1:N)*mu))
+p <- cumsum(rexp(N,rate=(N+1-1:N)*mu))
+#Alternative: Simulate from Hawkes process
+#p <- unlist(hawkes::simulateHawkes(lambda0=mu*5,alpha=10,beta=10,horizon=max(t)))
+
 #Discretize the event times into daily data, but show only data available before time max(t)
-K_days <- head(cumsum(table(cut(K, breaks=c(0:(max(t)),Inf)))),n=-1)
+K_days <- head(cumsum(table(cut(p, breaks=c(0:(max(t)),Inf)))),n=-1)
 K_days
 #Show result. Each time point t actually means the interval (t-1,t]
 testProcess <- data_frame(t=t,K=c(0,K_days))
@@ -179,6 +182,12 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
     mle <- optim(log(0.01),ll, testProcess=tP_at_time,control=list(fnscale=-1),method="BFGS")
     mu.hat <- exp(mle$par)
   } 
+  
+  #Add model based estimate for K(t)
+  lastRow <- tP_at_time %>% filter(row_number()==n())
+  N_estimate <- with(lastRow, K/pexp(t,rate=mu.hat))
+  testProcess <- testProcess %>% mutate(K_estimate=N_estimate*pexp(t,rate=mu.hat))
+  
   #Add curves to intersect with to the dataset
   testProcess <- testProcess %>% mutate(sol5=lhs(5,mu=mu.hat,testProcess),
                                       sol1=lhs(1,mu=mu.hat,testProcess)) %>% select(-K)
@@ -195,6 +204,8 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
   #Now make the plot
   p_sol <- ggplot(tP_at_time, aes(x=t,y=K)) + geom_line() +
     annotate("text",x=20,y=1.05*filter(tP_at_time,t==25)$K, label="K(t)",hjust=0.5,vjust=0) +
+    geom_line(data=testProcess, aes(x=t,y=K_estimate),lty=4,col="steelblue",alpha=0.25) +
+    annotate("text",x=175,y=0.95*filter(testProcess,t==175)$K_estimate, label="K.hat(t)") +
     geom_line(data=testProcess, aes(x=t,y=sol5),lty=2) +
     annotate("text",x=65,y=y5, label="f/c=5") +
     geom_point(data=theSol5,aes(x=t,y=K),size=4,col="red")  +

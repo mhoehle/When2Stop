@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,fig.width=6,fig.height=3)
+knitr::opts_chunk$set(echo = TRUE,fig.width=6,fig.height=4)
 library("ggplot2")
 library("dplyr")
 ```
@@ -66,7 +66,7 @@ The simplest example is to assume that the discovery distribution is exponential
 where we measure time in number of person-days spent on the testing. 
 Thus, $1/\mu$ is the expected time until discovery of a bug.
 
-* Let $K(t)$ be the total number of bugs found up to time $t$. Assuming that the inter-arrival times (i.e. the waiting time between two events) of the bug-discovery process are $0=t_{(0)} < t_{(1)} < t_{(2)} < \ldots < t_{(K(t))}$. We thus have that $$K(t) = \sum_{i : t_{(i)} \leq t}  t_{(i)}.$$
+* Let $K(t)$ be the total number of bugs found up to time $t$. 
 
 Note: The paper actually showns that the Poisson-Gamma distribution assumption for $N$ is not crucical. An asymptotic argument is given that as long as the process does not terminate quickly (i.e. the number of bugs is relatively large) the results hold for more general distributions of $N$. Hence, in what follows, the parameter $\lambda$ is not needed and we proceed only with the asymptotic approach of the paper. 
 
@@ -101,23 +101,23 @@ discovery time smaller than the current observation time are observed.
 Furthermore, if data on the daily number of bug discoveries then the data are also interval censored. We setup up the loglikelihood function accordingly.
 
 ```{r}
-#Daily number of *new* bug discoveries. The variable K_days contains the cumulated
-#number of bugs discovered as daily time series.
-DeltaK <- c(0,diff(K_days))
-
 #######################################################
 #Log-likelihood function to maximize, which handles the
 #right truncation and interval censoring.
 # Paramers:
 #  theta - \log(\mu).
+#  testProcess - data_frame containing the observed data
 #  tC - the right-censoring time.
 ########################################################
-ll <- function(theta, tC=176) {
+ll <- function(theta, testProcess, tC=max(testProcess$t)) {
   mu <- exp(theta)
+  #Daily number of *new* bug discoveries. .
+  DeltaK <- c(0,diff(testProcess$K))
+  #CDF function taking the truncation into account
   CDF <- function(x) pexp(x,rate=mu)/pexp(tC,rate=mu)
-  sum(DeltaK * log(CDF(1:(max(t)+1)) - CDF(t)))
+  sum(DeltaK * log(CDF(1:(max(testProcess$t)+1)) - CDF(testProcess$t)))
 }
-mle <- optim(log(0.01),ll, control=list(fnscale=-1),method="BFGS")
+mle <- optim(log(0.01),ll, testProcess=testProcess, control=list(fnscale=-1),method="BFGS")
 mu.hat <- exp(mle$par)
 c(mu=mu, mu.hat=mu.hat)
 ```
@@ -125,26 +125,110 @@ c(mu=mu, mu.hat=mu.hat)
 Note that we in the above used all data obtained over the entire testing
 period. In practice, one would instead sequentially update the $\mu$ estimate each day as the information arrives.
 
-```{r,warning=FALSE}
+```{r}
 #Function describing the LHS of (4.6) in the Delal and Mallows article
 # fdivc - f/c
-lhs <- function(fdivc) {
-  fdivc*(exp(mu*t)-1)/mu
+lhs <- function(fdivc,mu,testProcess) {
+  fdivc*(exp(mu*testProcess$t)-1)/mu
 }
-
-#Add curve
-testProcess <- testProcess %>% mutate(sol5=lhs(5), sol1=lhs(1))
-p + geom_line(data=testProcess, aes(x=t,y=sol5),lty=2) + ylim(c(0,1600))
-#Determine the stopping time for a f/c ratio of 5.
-stopTime <- testProcess %>% filter(sol5 >= K) %>%  filter(row_number()==1)
-stopTime
 ```
 
-The optimal stopping time in the example is to stop the testing after `r stopTime$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data!
+```{r,fig.align='center',warning=FALSE,echo=FALSE}
+#############################################
+# Show situation at time 'time'
+#
+# Paramaters:
+#  time   - timepoint of the testing period
+#  mu.hat - estimated value of mu.hat, if NULL a new estimation based on the available
+#           information at time 'time'
+#  plot   - (boolean, default TRUE) If TRUE a plot of the situation is made
+#############################################
+
+stoptime_at_time <- function(time=NULL,mu.hat=NULL,plot=TRUE) {
+  if (!is.null(time)) {
+    tP_at_time <- testProcess %>% filter(t <= time) %>% select(t,K)
+  } else {
+    tP_at_time <- testProcess 
+    time <- max(testProcess$t) 
+  }
+  
+  #Estimate mu.hat
+  if (is.null(mu.hat)) {
+    mle <- optim(log(0.01),ll, testProcess=tP_at_time, control=list(fnscale=-1),method="BFGS")
+    mu.hat <- exp(mle$par)
+  } 
+  #Add curves to intersect with to the dataset
+  testProcess <- testProcess %>% mutate(sol5=lhs(5,mu=mu.hat,testProcess),
+                                      sol1=lhs(1,mu=mu.hat,testProcess)) %>% select(-K)
+  
+  tP_at_time <- inner_join(tP_at_time,testProcess,by="t")
+  #Do we have some intersections?
+  theSol5 <- tP_at_time %>% filter(sol5>K) %>% filter(row_number()==1)
+  theSol1 <- tP_at_time %>% filter(sol1>K) %>% filter(row_number()==1) 
+  
+  #Plot it - first extract the y's of the labels
+  y5 <- testProcess %>% filter(t==50) %>% .[["sol5"]]
+  y1 <- testProcess %>% filter(t==100) %>% .[["sol1"]]
+  
+  #Now make the plot
+  p_sol <- ggplot(tP_at_time, aes(x=t,y=K)) + geom_line() +
+    annotate("text",x=20,y=1.05*filter(tP_at_time,t==25)$K, label="K(t)",hjust=0.5,vjust=0) +
+    geom_line(data=testProcess, aes(x=t,y=sol5),lty=2) +
+    annotate("text",x=65,y=y5, label="f/c=5") +
+    geom_point(data=theSol5,aes(x=t,y=K),size=4,col="red")  +
+    geom_line(data=testProcess, aes(x=t,y=sol1),lty=3) +
+    annotate("text",x=115,y=y1, label="f/c=1") +
+    geom_point(data=theSol1,aes(x=t,y=K),size=4,col="red")  +
+   
+    xlab("Time (testing days)") + ylab("Cumulative Number of Bugs found") +
+    ylim(c(0,1600)) + xlim(0,max(t)+1) + ggtitle(paste0("With mu.hat at time t=",time))
+  
+  if (nrow(theSol5)>0) {
+    p_sol <- p_sol + geom_linerange(data=theSol5,aes(ymin = 0, ymax = K),col="red",lty=2) +
+      annotate("text",x=theSol5$t,y=0,vjust=1,label=theSol5$t,col="red")
+  }
+   if (nrow(theSol1)>0) {
+    p_sol <- p_sol + geom_linerange(data=theSol1,aes(ymin = 0, ymax = K),col="red",lty=3) +
+      annotate("text",x=theSol1$t,y=0,vjust=1,label=theSol1$t,col="red")
+  }
+     
+  if (plot) { print(p_sol) }
+  #Done
+  invisible(list(stopTimefc5=theSol5,stopTimefc1=theSol1))
+}
+
+#Determine the stopping time for a f/c ratio of 5 and 1.
+stopTime <- stoptime_at_time(time=max(t),mu.hat=mu.hat,plot=TRUE)
+stopTime
+
+```
+
+The optimal stopping time in the example in the case of $f/c=5$ is to stop the testing after `r stopTime$stopTimefc5$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data!
+
+# Animation
+
+The animation belows shows the above computations in sequential fashion:
+
+* At a given time $t$ of the testing process, $\hat{\mu}$ is
+determined from the curve of cumulative bugs found up to time
+$t$. 
+* This  $\hat{\mu}$ estimate is then use to determine the intersecting curves as described above. 
+* Once the $K(t)$ curve and the curve for a given $f/c$ ratio intersect, we would stop the testing.
+
+
+```{r,warning=FALSE,echo=FALSE,results='hide',message=FALSE,fig.width=6,fig.height=4}
+#plot_at_time(169)
+t_grid <- seq(25,max(t),by=5)
+library("animation")
+ani.options(interval=0.25)
+saveGIF(sapply(t_grid,stoptime_at_time))
+```
+
+![](animation.gif)
 
 # Discussion
 
-* How realistic is it that the discovery distribution of bugs is independent between the bugs? 
+* Assuming that the time periods until discovery of the bugs are independently distributed appears convenient, butnot so realistic. The paper has a section about analysing the situation in case of different classes of bugs. However, fixing a bug often spawns new bugs. Hence, the bug-process could instead be more realistically  modelled by a self-exiciting process such as the Hawkes' process (Hawkes, 1971). 
 
 * For Open Source Software and in particular R packages, which nobody might ever use, is $c$ really bigger than zero? Ship and fix might be a good way to test, if a package actually addresses any kind of need?
 
@@ -152,4 +236,6 @@ The optimal stopping time in the example is to stop the testing after `r stopTim
 
 # Literature
 
-* Dalal, S. R., and C. L. Mallows. “[When Should One Stop Testing Software?](http://www.jstor.org/stable/2289319)”. Journal of the American Statistical Association 83.403 (1988): 872–879. 
+* Dalal, S. R. and C. L. Mallows. “[When Should One Stop Testing Software?](http://www.jstor.org/stable/2289319)”. Journal of the American Statistical Association (1988), 83(403):872–879. 
+
+* Hawkes, A. G. "[Spectra of some self-exciting and mutually exciting point processes](http://biomet.oxfordjournals.org/content/58/1/83.abstract)". Biometrika (1971), 58(1):83-90.

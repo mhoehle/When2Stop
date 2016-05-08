@@ -44,11 +44,11 @@ N <- 1250
 #See
 #http://www.math.kth.se/matstat/gru/sf2955/exponorderstats.pdf
 K <- cumsum(rexp(N,rate=(N+1-1:N)*mu))
-#Discretize the event times into daily data
-K_days <- head(cumsum(table(cut(K, breaks=c(0:(max(t)+1),Inf)))),n=-1)
+#Discretize the event times into daily data, but show only data available before time max(t)
+K_days <- head(cumsum(table(cut(K, breaks=c(0:(max(t)),Inf)))),n=-1)
 K_days
-#Show result
-testProcess <- data_frame(t=t,K=K_days)
+#Show result. Each time point t actually means the interval (t-1,t]
+testProcess <- data_frame(t=t,K=c(0,K_days))
 p <- ggplot(testProcess, aes(x=t,y=K)) + geom_line() + xlab("Time (testing days)") + ylab("Cumulative Number of Bugs found")
 print(p)
 
@@ -154,7 +154,7 @@ period. In practice, one would instead sequentially update the $\mu$ estimate ea
 
 
 ```{r,fig.align='center',warning=FALSE,echo=FALSE}
-#############################################
+####################################################################################
 # Show situation at time 'time'. 
 #
 # Paramaters:
@@ -164,7 +164,7 @@ period. In practice, one would instead sequentially update the $\mu$ estimate ea
 #           information at time 'time'
 #  testProcess - data_frame containing the data to illustrate/estimate from
 #  plot   - (boolean, default TRUE) If TRUE a plot of the situation is made
-#############################################
+####################################################################################
 
 stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
   if (!is.null(time)) {
@@ -225,7 +225,7 @@ stopTime$stopTimefc5
 
 ```
 
-The optimal stopping time in the example, in the case of $f/c=5$, is to stop the testing after `r stopTime$stopTimefc5$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data -- actually, they were simulated with $N=\Sexpr{N}$.
+The optimal stopping time in the example, in the case of $f/c=5$, is to stop the testing after `r stopTime$stopTimefc5$t` testing days. An estimate of the expected number of remaining bugs at this stopping time would be `r sprintf("%.1f",5/mu.hat)`, which appears to agree quite well with the empirical data -- actually, they were simulated with $N=`r N`$.
 
 # Animation
 

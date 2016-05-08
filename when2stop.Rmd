@@ -169,7 +169,7 @@ period. In practice, one would instead sequentially update the $\mu$ estimate ea
 #  plot   - (boolean, default TRUE) If TRUE a plot of the situation is made
 ####################################################################################
 
-stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
+stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE,no_Khat=FALSE) {
   if (!is.null(time)) {
     tP_at_time <- testProcess %>% filter(t <= time) %>% select(t,K)
   } else {
@@ -204,8 +204,6 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
   #Now make the plot
   p_sol <- ggplot(tP_at_time, aes(x=t,y=K)) + geom_line() +
     annotate("text",x=20,y=1.05*filter(tP_at_time,t==25)$K, label="K(t)",hjust=0.5,vjust=0) +
-    geom_line(data=testProcess, aes(x=t,y=K_estimate),lty=4,col="steelblue",alpha=0.25) +
-    annotate("text",x=175,y=0.95*filter(testProcess,t==175)$K_estimate, label="K.hat(t)") +
     geom_line(data=testProcess, aes(x=t,y=sol5),lty=2) +
     annotate("text",x=65,y=y5, label="f/c=5") +
     geom_point(data=theSol5,aes(x=t,y=K),size=4,col="red")  +
@@ -224,14 +222,17 @@ stoptime_at_time <- function(time=NULL,mu.hat=NULL,testProcess, plot=TRUE) {
     p_sol <- p_sol + geom_linerange(data=theSol1,aes(ymin = 0, ymax = K),col="red",lty=3) +
       annotate("text",x=theSol1$t,y=0,vjust=1,label=theSol1$t,col="red")
   }
-     
+  if (!no_Khat) {
+    p_sol <- p_sol + geom_line(data=testProcess, aes(x=t,y=K_estimate),lty=4,col="steelblue",alpha=0.25) +
+    annotate("text",x=175,y=0.95*filter(testProcess,t==175)$K_estimate, label="K.hat(t)") 
+  }   
   if (plot) { print(p_sol) }
   #Done
   invisible(list(stopTimefc5=theSol5,stopTimefc1=theSol1))
 }
 
 #Determine the stopping time for a f/c ratio of 5 and 1.
-stopTime <- stoptime_at_time(time=max(t),mu.hat=mu.hat,testProcess=testProcess,plot=TRUE)
+stopTime <- stoptime_at_time(time=max(t),mu.hat=mu.hat,testProcess=testProcess,plot=TRUE,no_Khat=TRUE)
 stopTime$stopTimefc5
 
 ```

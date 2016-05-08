@@ -22,7 +22,8 @@ shipping. The problem is translated into a sequential decision problem, where an
 We sketch the main result of their paper and apply their stopping rule to an example
 using R code.
 
-This text & source code is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop). Furthermore, it is also available as a [RPubs](http://rpubs.com/hoehle/179204).
+This text & source code is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop). Furthermore, it is also available as a [RPubs](http://rpubs.com/hoehle/179204). This publication was announced 
+via [twitter](https://twitter.com/m_hoehle/status/729107184789954561).
 
 # Introduction
 

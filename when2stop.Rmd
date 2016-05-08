@@ -20,7 +20,7 @@ shipping it by finding an optimal stopping rule in order to minimize expected lo
 We sketch the main result of their article and apply their rule to an example
 using R code.
 
-This text is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop) and as an [RPubs](http://rpubs.com/hoehle/179204).
+This text is available under the MIT license from [Github](https://github.com/hoehleatsu/When2Stop) and as a [RPubs](http://rpubs.com/hoehle/179204).
 
 # Introduction
 
